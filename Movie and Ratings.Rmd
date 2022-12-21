@@ -1,0 +1,165 @@
+---
+title: "Movies and Ratings"
+output:
+  html_document: default
+  pdf_document: default
+---
+## Setup 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(tidyverse)
+library(here)
+library(reprex)
+```
+
+```{r data_read}
+Movie <- read.csv(here("Data","Movie Ratings.csv"))
+head(Movie)
+IMDB <- read.csv(here("Data", "imdb_1000.csv"))
+```
+
+## The Data
+Movie_Ratings.csv
+
+Download link:  https://www.dropbox.com/s/ebr2gzy95pb9lsx/Movie%20Ratings.csv?dl=1 
+
+Variables:
+
+* Film - The title of a film.
+* Genre - The film's primary genre.
+* Rotten Tomatoes % - The average movie rating from critics on Rotten Tomatoes, from 0-100.
+* Audience Ratings % - The average movie rating voted by audience members on Rotten Tomatoes, from 0-100.
+* Budget (million $) - The operating budget of the movie.
+* Year of release - The year the movie hit theaters.
+ 
+
+imdb_1000.csv
+
+Download link: https://www.dropbox.com/s/ov5cntaof9lj9v6/imdb_1000.csv?dl=1 
+
+Variables:
+
+* star_rating - The rating of the movie from user votes on imdb.com.  (0-10)
+* title - The title of the film
+* content_rating - The designation of the movie from the Motion Picture Association.
+* genre - The primary genre of the film.
+* duration - The length of the film, in minutes
+* actors_list - The leading actors credited in the movie.
+
+## The Tasks
+
+#### Cleaning/Plotting
+
+1.  Read in and summarize the data.
+
+```{r cleaning/plotting1}
+Movie %>%
+  summary()
+IMDB %>%
+  summary()
+```
+
+2.  What genre had the highest average imdb rating?
+
+```{r cleaning/plotting2}
+IMDB %>%
+  group_by(genre) %>%
+  summarise(mean=mean(star_rating)) %>%
+  arrange(desc(mean))
+
+```
+Ans. Western
+
+3.  Is there a relationship between the content rating of the movie (e.g. "PG-13") and its duration?  Make a plot.
+
+```{r cleaning/plotting3}
+IMDB %>%
+  ggplot(aes(x=content_rating, y=duration))+
+  geom_boxplot()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+Ans. No relationship
+
+#### Pivoting
+
+1. Make a column plot comparing Rotten Tomato critic and audience ratings for all the Romance movies.
+
+```{r pivoting1}
+Movie1 <- Movie %>%
+  select(Genre, Film,Rotten.Tomatoes.Ratings..,Audience.Ratings..) %>%
+  filter(Genre=="Romance") %>%
+  pivot_longer(Rotten.Tomatoes.Ratings..:Audience.Ratings.., names_to = 'Ratings', values_to = 'Rating_value')
+  
+Movie1 %>%
+  ggplot(aes(x = `Rating_value`,y = Film, fill = Ratings )) +
+  geom_col()
+```
+
+2. For each year, find the average audience rating difference between Comedy and Drama movies.
+
+```{r pivoting2}
+Movie %>%
+  filter(Genre == c('Comedy','Drama')) %>%
+  group_by(`Year.of.release`, Genre) %>%
+  summarise(Mean_Aud_Rating = mean(Audience.Ratings.. )) %>%
+  pivot_wider(names_from = Genre, values_from = Mean_Aud_Rating) %>%
+  mutate(`Mean_Aud_Rating_Diff` = Drama - Comedy)
+```
+
+#### Joining
+
+1. How many movies appear in both datasets?
+
+```{r joining1}
+Movie_1 <- Movie %>%
+  select(Film)
+IMDB_1 <- IMDB %>%
+  select(title)
+
+MovieT <- inner_join(Movie_1,IMDB_1,by = c("Film"="title"))
+
+length(unique(MovieT$Film))
+```
+
+2. How many movies appear in only the imdb dataset?
+
+```{r joining2}
+length(unique(IMDB_1$title))
+```
+
+3. How many movies appear in only the Rotten Tomatoes dataset?
+
+```{r joining3}
+length(unique(Movie_1$Film))
+```
+
+## Joining and pivoting
+
+Make a plot comparing the ratings from Rotten Tomatoes Critics, Rotten Tomatoes Audience, and imdb.
+
+```{r joining&pivoting}
+Compare1 <-
+  inner_join(Movie, IMDB, by = c('Film' = 'title'))
+
+Compare2 <- Compare1 %>% 
+  mutate(star_rating = star_rating*10) %>%
+  select(Genre,Rotten.Tomatoes.Ratings.., Audience.Ratings..,star_rating)
+  
+Compare3 <- Compare2 %>%
+  pivot_longer(Rotten.Tomatoes.Ratings..: star_rating, names_to = 'Rating_Name', values_to = 'Rating_Value') %>%
+  group_by(Genre, Rating_Name) %>%
+  summarise(mean_Rating_Value = as.integer(mean(Rating_Value)))
+
+Compare3
+
+Compare3 %>% 
+  ggplot() +
+  geom_col(aes(x= Genre, y = mean_Rating_Value, fill = Rating_Name), position = 'dodge')
+
+```
